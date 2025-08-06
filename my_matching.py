@@ -138,6 +138,8 @@ def process_and_write_back(
 
     except Exception as e:
         print(f"处理错误: {str(e)}")
+        # 出错时暂停，避免闪退
+        input("\n按任意键继续...")
         return None
 
 
@@ -146,6 +148,9 @@ def find_excel_file(base_name, current_dir):
     查找当前目录下是否存在指定基础名称的Excel文件（.xls或.xlsx）
     返回找到的完整路径，未找到则返回None
     """
+    # 打印调试信息
+    print(f"查找文件: {base_name} 在目录: {current_dir}")
+    
     # 可能的文件后缀
     extensions = ['.xlsx', '.xls']
     
@@ -153,14 +158,18 @@ def find_excel_file(base_name, current_dir):
     if any(base_name.endswith(ext) for ext in extensions):
         full_path = os.path.join(current_dir, base_name)
         if os.path.exists(full_path) and os.path.isfile(full_path):
+            print(f"找到文件: {full_path}")
             return full_path
+        print(f"未找到文件: {full_path}")
         return None
     
     # 自动尝试添加后缀查找
     for ext in extensions:
         full_path = os.path.join(current_dir, f"{base_name}{ext}")
         if os.path.exists(full_path) and os.path.isfile(full_path):
+            print(f"找到文件: {full_path}")
             return full_path
+        print(f"未找到文件: {full_path}")
     
     return None
 
@@ -191,112 +200,132 @@ def get_sheet_name(file_path, prompt, default_sheet, engine):
         except Exception as e:
             print(f"检查工作表时出错: {str(e)}")
             print("请重新输入，或输入quit退出程序\n")
+            # 出错时暂停，避免闪退
+            input("按任意键继续...")
 
 
 def clear_screen():
     """跨平台清屏函数"""
-    os.system('cls' if os.name == 'nt' else 'clear')
+    try:
+        os.system('cls' if os.name == 'nt' else 'clear')
+    except:
+        pass  # 清屏失败不影响主程序
 
 
 if __name__ == "__main__":
-    # 跨平台编码设置（解决中文显示问题）
-    if os.name == 'nt':
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-        current_dir = os.paht.dirname(sys.executable)
-    else:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-    clear_screen()
-    print(f"程序当前目录：{current_dir}")
-    print("请确保所有Excel文件与本程序放在同一文件夹中")
-    print("输入过程中随时可以输入'quit'退出程序")
-    print("输入文件名时无需添加后缀（程序会自动识别.xls和.xlsx格式）\n")
-    
-    # 获取焊接产量表（自动检测后缀）
-    while True:
-        original_name = input("请输入焊接产量表的文件名（无需后缀）：").strip()
-        if original_name.lower() == 'quit':
-            print("用户选择退出程序")
-            sys.exit(0)
-            
-        original_file = find_excel_file(original_name, current_dir)
-        if original_file:
-            break
-        print(f"错误：未找到文件 '{original_name}.xls' 或 '{original_name}.xlsx'")
-        print("请重新输入，或输入quit退出程序\n")
+    # 全局异常捕获，防止闪退
+    try:
+        # 跨平台编码设置（解决中文显示问题）
+        if os.name == 'nt':
+            import io
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-    # 获取焊接产量表的工作表名称
-    ext = os.path.splitext(original_file)[1].lower()
-    engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
-    target_sheet = get_sheet_name(
-        original_file,
-        f"请输入焊接产量表的工作表名称（默认07）：",
-        "07",
-        engine
-    )
-    
-    # 获取料号索引表（自动检测后缀）
-    while True:
-        index_name = input("请输入料号索引表的文件名（无需后缀）：").strip()
-        if index_name.lower() == 'quit':
-            print("用户选择退出程序")
-            sys.exit(0)
-            
-        index_file = find_excel_file(index_name, current_dir)
-        if index_file:
-            break
-        print(f"错误：未找到文件 '{index_name}.xls' 或 '{index_name}.xlsx'")
-        print("请重新输入，或输入quit退出程序\n")
+        # 更可靠的路径获取方式
+        if getattr(sys, 'frozen', False):
+            # 打包后的环境
+            current_dir = os.path.dirname(sys.executable)
+        else:
+            # 开发环境
+            current_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # 获取料号索引表的工作表名称
-    ext = os.path.splitext(index_file)[1].lower()
-    engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
-    index_sheet = get_sheet_name(
-        index_file,
-        f"请输入料号索引表的工作表名称（默认Sheet1）：",
-        "Sheet1",
-        engine
-    )
+        clear_screen()
+        print(f"程序当前目录：{current_dir}")
+        print("请确保所有Excel文件与本程序放在同一文件夹中")
+        print("输入过程中随时可以输入'quit'退出程序")
+        print("输入文件名时无需添加后缀（程序会自动识别.xls和.xlsx格式）\n")
+        
+        # 获取焊接产量表（自动检测后缀）
+        while True:
+            original_name = input("请输入焊接产量表的文件名（无需后缀）：").strip()
+            if original_name.lower() == 'quit':
+                print("用户选择退出程序")
+                sys.exit(0)
+                
+            original_file = find_excel_file(original_name, current_dir)
+            if original_file:
+                break
+            print(f"错误：未找到文件 '{original_name}.xls' 或 '{original_name}.xlsx'")
+            print("请重新输入，或输入quit退出程序\n")
+            input("按任意键继续...")
 
-    # 获取成品编码表（自动检测后缀）
-    while True:
-        product_name = input("请输入成品编码表的文件名（无需后缀）：").strip()
-        if product_name.lower() == 'quit':
-            print("用户选择退出程序")
-            sys.exit(0)
-            
-        product_file = find_excel_file(product_name, current_dir)
-        if product_file:
-            break
-        print(f"错误：未找到文件 '{product_name}.xls' 或 '{product_name}.xlsx'")
-        print("请重新输入，或输入quit退出程序\n")
+        # 获取焊接产量表的工作表名称
+        ext = os.path.splitext(original_file)[1].lower()
+        engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
+        target_sheet = get_sheet_name(
+            original_file,
+            f"请输入焊接产量表的工作表名称（默认07）：",
+            "07",
+            engine
+        )
+        
+        # 获取料号索引表（自动检测后缀）
+        while True:
+            index_name = input("请输入料号索引表的文件名（无需后缀）：").strip()
+            if index_name.lower() == 'quit':
+                print("用户选择退出程序")
+                sys.exit(0)
+                
+            index_file = find_excel_file(index_name, current_dir)
+            if index_file:
+                break
+            print(f"错误：未找到文件 '{index_name}.xls' 或 '{index_name}.xlsx'")
+            print("请重新输入，或输入quit退出程序\n")
+            input("按任意键继续...")
 
-    # 获取成品编码表的工作表名称
-    ext = os.path.splitext(product_file)[1].lower()
-    engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
-    product_sheet = get_sheet_name(
-        product_file,
-        f"请输入成品编码表的工作表名称（默认Sheet）：",
-        "Sheet",
-        engine
-    )
-    
-    # 显示最终使用的文件和工作表信息
-    print("\n使用的配置信息：")
-    print(f"焊接产量表：{original_file}，工作表：{target_sheet}")
-    print(f"料号索引表：{index_file}，工作表：{index_sheet}")
-    print(f"成品编码表：{product_file}，工作表：{product_sheet}\n")
-    
-    # 执行处理
-    process_and_write_back(
-        original_file=original_file,
-        index_file=index_file,
-        product_file=product_file,
-        target_sheet=target_sheet,
-        index_sheet=index_sheet,
-        product_sheet=product_sheet
-    )
-    
-    # 跨平台暂停，防止程序闪退
-    input("\n处理完成，按任意键退出...")
+        # 获取料号索引表的工作表名称
+        ext = os.path.splitext(index_file)[1].lower()
+        engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
+        index_sheet = get_sheet_name(
+            index_file,
+            f"请输入料号索引表的工作表名称（默认Sheet1）：",
+            "Sheet1",
+            engine
+        )
+
+        # 获取成品编码表（自动检测后缀）
+        while True:
+            product_name = input("请输入成品编码表的文件名（无需后缀）：").strip()
+            if product_name.lower() == 'quit':
+                print("用户选择退出程序")
+                sys.exit(0)
+                
+            product_file = find_excel_file(product_name, current_dir)
+            if product_file:
+                break
+            print(f"错误：未找到文件 '{product_name}.xls' 或 '{product_name}.xlsx'")
+            print("请重新输入，或输入quit退出程序\n")
+            input("按任意键继续...")
+
+        # 获取成品编码表的工作表名称
+        ext = os.path.splitext(product_file)[1].lower()
+        engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
+        product_sheet = get_sheet_name(
+            product_file,
+            f"请输入成品编码表的工作表名称（默认Sheet）：",
+            "Sheet",
+            engine
+        )
+        
+        # 显示最终使用的文件和工作表信息
+        print("\n使用的配置信息：")
+        print(f"焊接产量表：{original_file}，工作表：{target_sheet}")
+        print(f"料号索引表：{index_file}，工作表：{index_sheet}")
+        print(f"成品编码表：{product_file}，工作表：{product_sheet}\n")
+        
+        # 执行处理
+        process_and_write_back(
+            original_file=original_file,
+            index_file=index_file,
+            product_file=product_file,
+            target_sheet=target_sheet,
+            index_sheet=index_sheet,
+            product_sheet=product_sheet
+        )
+        
+    except Exception as e:
+        # 捕获所有未处理的异常，防止闪退
+        print(f"\n程序发生错误：{str(e)}")
+    finally:
+        # 无论是否出错，都暂停等待用户确认
+        input("\n处理完成，按任意键退出...")
     
