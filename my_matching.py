@@ -203,8 +203,9 @@ if __name__ == "__main__":
     if os.name == 'nt':
         import io
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+        current_dir = os.paht.dirname(sys.executable)
+    else:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
     clear_screen()
     print(f"程序当前目录：{current_dir}")
     print("请确保所有Excel文件与本程序放在同一文件夹中")
