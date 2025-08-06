@@ -4,18 +4,20 @@ import os
 import sys
 from openpyxl import load_workbook
 
+
 def extract_dimensions(specification):
     """从字符串中提取三维尺寸信息（支持x、×、*等分隔符）"""
     if pd.isna(specification):
         return None
-    
+
     spec_str = str(specification).strip()
     pattern = re.compile(r"(\d+)[x×*](\d+)[x×*](\d+)")
     match = pattern.search(spec_str)
-    
+
     if match:
         return tuple(int(dim) for dim in match.groups())
     return None
+
 
 def process_and_write_back(
     original_file, index_file, product_file,
@@ -49,7 +51,7 @@ def process_and_write_back(
             sheet_name=index_sheet,
             engine=get_engine(index_file)
         )
-        
+
         product_df = pd.read_excel(
             product_file,
             sheet_name=product_sheet,
@@ -67,7 +69,7 @@ def process_and_write_back(
         if not all(col in target_df.columns for col in required_cols):
             missing = [col for col in required_cols if col not in target_df.columns]
             raise ValueError(f"目标工作表缺少必要列: {missing}")
-            
+
         # 处理空值并转换为字符串
         target_df['货号'] = target_df['货号'].fillna('').astype(str).str.strip()
         target_df['标记'] = target_df['标记'].fillna('').astype(str).str.strip()
@@ -77,9 +79,9 @@ def process_and_write_back(
         print("匹配料号索引表...")
         if '索引字段' not in index_df.columns or '料号' not in index_df.columns:
             raise ValueError("料号索引表缺少'索引字段'或'料号'列")
-            
+
         index_map = pd.Series(index_df['料号'].values, index=index_df['索引字段']).to_dict()
-        
+
         # 新增或更新料号列
         if '料号' in target_df.columns:
             mask = target_df['料号'].isna() | (target_df['料号'] == '')
@@ -94,9 +96,9 @@ def process_and_write_back(
         if not all(col in product_df.columns for col in product_required):
             missing = [col for col in product_required if col not in product_df.columns]
             raise ValueError(f"成品编码表缺少必要列: {missing}")
-            
+
         product_df['提取的尺寸'] = product_df['规格型号'].apply(extract_dimensions)
-        
+
         mask = (target_df['料号'].isna()) | (target_df['料号'] == '')
         for idx, row in target_df[mask].iterrows():
             row_dim = extract_dimensions(row['货号'])
@@ -114,7 +116,7 @@ def process_and_write_back(
         # 写回原始文件（跨平台兼容）
         print(f"正在写回原始文件的 '{target_sheet}' 工作表...")
         ext = os.path.splitext(original_file)[1].lower()
-        
+
         if ext == '.xlsx':
             with pd.ExcelWriter(
                 original_file,
@@ -126,7 +128,7 @@ def process_and_write_back(
         else:
             all_sheets = pd.read_excel(original_file, sheet_name=None, engine='xlrd')
             all_sheets[target_sheet] = target_df
-            
+
             with pd.ExcelWriter(original_file, engine='xlwt') as writer:
                 for sheet_name, df in all_sheets.items():
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -139,23 +141,56 @@ def process_and_write_back(
         return None
 
 
-def get_full_path(filename):
-    """跨平台获取文件完整路径"""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    # 使用os.path.join自动处理路径分隔符
-    full_path = os.path.join(current_dir, filename)
-    return full_path
+def find_excel_file(base_name, current_dir):
+    """
+    查找当前目录下是否存在指定基础名称的Excel文件（.xls或.xlsx）
+    返回找到的完整路径，未找到则返回None
+    """
+    # 可能的文件后缀
+    extensions = ['.xlsx', '.xls']
+    
+    # 先检查用户是否已输入后缀（兼容旧方式）
+    if any(base_name.endswith(ext) for ext in extensions):
+        full_path = os.path.join(current_dir, base_name)
+        if os.path.exists(full_path) and os.path.isfile(full_path):
+            return full_path
+        return None
+    
+    # 自动尝试添加后缀查找
+    for ext in extensions:
+        full_path = os.path.join(current_dir, f"{base_name}{ext}")
+        if os.path.exists(full_path) and os.path.isfile(full_path):
+            return full_path
+    
+    return None
 
 
-def validate_file_exists(file_path, file_desc):
-    """验证文件是否存在（跨平台兼容）"""
-    if not os.path.exists(file_path):
-        print(f"错误：{file_desc} '{file_path}' 不存在！")
-        return False
-    if not os.path.isfile(file_path):
-        print(f"错误：{file_desc} '{file_path}' 不是有效的文件！")
-        return False
-    return True
+def get_sheet_name(file_path, prompt, default_sheet, engine):
+    """
+    获取并验证用户输入的工作表名称
+    支持输入quit退出程序，检测工作表是否存在
+    """
+    while True:
+        sheet_name = input(prompt).strip() or default_sheet
+        
+        # 检查是否退出程序
+        if sheet_name.lower() == 'quit':
+            print("用户选择退出程序")
+            sys.exit(0)
+            
+        # 检查工作表是否存在
+        try:
+            # 只获取工作表名称列表，不读取全部数据
+            xl = pd.ExcelFile(file_path, engine=engine)
+            if sheet_name in xl.sheet_names:
+                return sheet_name
+            else:
+                print(f"错误：文件中不存在 '{sheet_name}' 工作表")
+                print(f"该文件包含的工作表有：{', '.join(xl.sheet_names)}")
+                print("请重新输入，或输入quit退出程序\n")
+        except Exception as e:
+            print(f"检查工作表时出错: {str(e)}")
+            print("请重新输入，或输入quit退出程序\n")
 
 
 def clear_screen():
@@ -172,45 +207,95 @@ if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
     clear_screen()
     print(f"程序当前目录：{current_dir}")
-    print("请确保所有Excel文件与本程序放在同一文件夹中\n")
+    print("请确保所有Excel文件与本程序放在同一文件夹中")
+    print("输入过程中随时可以输入'quit'退出程序")
+    print("输入文件名时无需添加后缀（程序会自动识别.xls和.xlsx格式）\n")
     
-    # 获取目标工作表名称
-    target_sheet = input("请输入目标工作表名称（默认07）：") or "07"
-    
-    # 获取文件名并验证（焊接产量表）
+    # 获取焊接产量表（自动检测后缀）
     while True:
-        original_name = input("请输入焊接产量表的文件名（例如：焊接产量表.xlsx）：")
-        original_file = get_full_path(original_name)
-        if validate_file_exists(original_file, "焊接产量表"):
+        original_name = input("请输入焊接产量表的文件名（无需后缀）：").strip()
+        if original_name.lower() == 'quit':
+            print("用户选择退出程序")
+            sys.exit(0)
+            
+        original_file = find_excel_file(original_name, current_dir)
+        if original_file:
             break
-    
-    # 获取料号索引表
-    while True:
-        index_name = input("请输入料号索引表的文件名（例如：料号索引.xlsx）：")
-        index_file = get_full_path(index_name)
-        if validate_file_exists(index_file, "料号索引表"):
-            break
+        print(f"错误：未找到文件 '{original_name}.xls' 或 '{original_name}.xlsx'")
+        print("请重新输入，或输入quit退出程序\n")
 
-    # 获取成品编码表
-    while True:
-        product_name = input("请输入成品编码表的文件名（例如：成品编码.xls）：")
-        product_file = get_full_path(product_name)
-        if validate_file_exists(product_file, "成品编码表"):
-            break
+    # 获取焊接产量表的工作表名称
+    ext = os.path.splitext(original_file)[1].lower()
+    engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
+    target_sheet = get_sheet_name(
+        original_file,
+        f"请输入焊接产量表的工作表名称（默认07）：",
+        "07",
+        engine
+    )
     
-    # 显示最终使用的文件路径
-    print("\n使用的文件路径：")
-    print(f"焊接产量表：{original_file}")
-    print(f"料号索引表：{index_file}")
-    print(f"成品编码表：{product_file}\n")
+    # 获取料号索引表（自动检测后缀）
+    while True:
+        index_name = input("请输入料号索引表的文件名（无需后缀）：").strip()
+        if index_name.lower() == 'quit':
+            print("用户选择退出程序")
+            sys.exit(0)
+            
+        index_file = find_excel_file(index_name, current_dir)
+        if index_file:
+            break
+        print(f"错误：未找到文件 '{index_name}.xls' 或 '{index_name}.xlsx'")
+        print("请重新输入，或输入quit退出程序\n")
+
+    # 获取料号索引表的工作表名称
+    ext = os.path.splitext(index_file)[1].lower()
+    engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
+    index_sheet = get_sheet_name(
+        index_file,
+        f"请输入料号索引表的工作表名称（默认Sheet1）：",
+        "Sheet1",
+        engine
+    )
+
+    # 获取成品编码表（自动检测后缀）
+    while True:
+        product_name = input("请输入成品编码表的文件名（无需后缀）：").strip()
+        if product_name.lower() == 'quit':
+            print("用户选择退出程序")
+            sys.exit(0)
+            
+        product_file = find_excel_file(product_name, current_dir)
+        if product_file:
+            break
+        print(f"错误：未找到文件 '{product_name}.xls' 或 '{product_name}.xlsx'")
+        print("请重新输入，或输入quit退出程序\n")
+
+    # 获取成品编码表的工作表名称
+    ext = os.path.splitext(product_file)[1].lower()
+    engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
+    product_sheet = get_sheet_name(
+        product_file,
+        f"请输入成品编码表的工作表名称（默认Sheet）：",
+        "Sheet",
+        engine
+    )
+    
+    # 显示最终使用的文件和工作表信息
+    print("\n使用的配置信息：")
+    print(f"焊接产量表：{original_file}，工作表：{target_sheet}")
+    print(f"料号索引表：{index_file}，工作表：{index_sheet}")
+    print(f"成品编码表：{product_file}，工作表：{product_sheet}\n")
     
     # 执行处理
     process_and_write_back(
         original_file=original_file,
         index_file=index_file,
         product_file=product_file,
-        target_sheet=target_sheet
+        target_sheet=target_sheet,
+        index_sheet=index_sheet,
+        product_sheet=product_sheet
     )
     
     # 跨平台暂停，防止程序闪退
     input("\n处理完成，按任意键退出...")
+    
