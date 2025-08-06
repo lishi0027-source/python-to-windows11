@@ -4,20 +4,25 @@ import os
 import sys
 from openpyxl import load_workbook
 
-
 def extract_dimensions(specification):
-    """从字符串中提取三维尺寸信息（支持x、×、*等分隔符）"""
+    """从字符串中提取三维尺寸信息(支持x、X、*等分隔符）"""
     if pd.isna(specification):
         return None
 
     spec_str = str(specification).strip()
-    pattern = re.compile(r"(\d+)[x×*](\d+)[x×*](\d+)")
+    pattern = re.compile(r"(\d+)[x×X*](\d+)[x×X*](\d+)")
     match = pattern.search(spec_str)
-
     if match:
         return tuple(int(dim) for dim in match.groups())
     return None
 
+def normalize_mark(mark):
+    """标准化标记：将“无标记”和“无标”统一为“无标”，其他标记去空格"""
+    mark_str = str(mark).lower().strip()
+    if mark_str in ["无标记","标记"]:
+        return "无标"
+    else:
+        return mark_str
 
 def process_and_write_back(
     original_file, index_file, product_file,
@@ -71,8 +76,8 @@ def process_and_write_back(
             raise ValueError(f"目标工作表缺少必要列: {missing}")
 
         # 处理空值并转换为字符串
-        target_df['货号'] = target_df['货号'].fillna('').astype(str).str.strip()
-        target_df['标记'] = target_df['标记'].fillna('').astype(str).str.strip()
+        target_df['货号'] = target_df['货号'].fillna('').astype(str)
+        target_df['标记'] = target_df['标记'].fillna('').astype(str)
         target_df['索引字段'] = target_df['货号'] + target_df['标记']
 
         # 匹配料号索引表获取料号
@@ -92,26 +97,40 @@ def process_and_write_back(
 
         # 匹配成品编码表补充未匹配的料号
         print("匹配成品编码表...")
-        product_required = ['规格型号', '净重', '产品编号']
+        product_required = ['规格型号','标记', '产品编号']
         if not all(col in product_df.columns for col in product_required):
             missing = [col for col in product_required if col not in product_df.columns]
             raise ValueError(f"成品编码表缺少必要列: {missing}")
 
         product_df['提取的尺寸'] = product_df['规格型号'].apply(extract_dimensions)
+        product_df['标准化标记'] = product_df['标记'].apply(normalize_mark)
+        target_df['标准化标记'] = target_df['标记'].apply(normalize_mark)
 
         mask = (target_df['料号'].isna()) | (target_df['料号'] == '')
+
+        count = 0
+        count1 = 0
         for idx, row in target_df[mask].iterrows():
+            count1 += 1
             row_dim = extract_dimensions(row['货号'])
             if row_dim:
-                dim_matches = product_df[product_df['提取的尺寸'] == row_dim]
-                if not dim_matches.empty:
-                    weight_matches = dim_matches[dim_matches['净重'] == row['单重']]
-                    if not weight_matches.empty:
-                        target_df.at[idx, '料号'] = weight_matches.iloc[0]['产品编号']
+                matches = product_df[(product_df['提取的尺寸'] == row_dim) & 
+                            (product_df['标准化标记'] == row['标准化标记'])]
+                if not matches.empty:
+                    target_df.at[idx, '料号'] = matches.iloc[0]['产品编号']
+                    count += 1
+
+        print(f"精确匹配后，还有{count1}没有匹配！")
+        print(f"尺寸和标记匹配了{count}条数据")
+        print(f"还剩{count1-count}个索引字段找不到料号，为空值")
 
         # 清理临时列
         if '提取的尺寸' in target_df.columns:
             target_df = target_df.drop(columns=['提取的尺寸'])
+        
+        temp_cols = ['标准化标记', '提取的尺寸']
+        target_df = target_df.drop(columns=[col for col in temp_cols if col in target_df.columns])
+        product_df = product_df.drop(columns=[col for col in temp_cols if col in product_df.columns])
 
         # 写回原始文件（跨平台兼容）
         print(f"正在写回原始文件的 '{target_sheet}' 工作表...")
@@ -328,4 +347,3 @@ if __name__ == "__main__":
     finally:
         # 无论是否出错，都暂停等待用户确认
         input("\n处理完成，按任意键退出...")
-    
