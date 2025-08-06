@@ -3,35 +3,36 @@ name: Build Windows 11 Executable
 on:
   push:
     branches:
-      -main  # 或者你想要触发工作流的分支
+      - main  # 修复：分支名称前添加空格
 
 jobs:
   build:
     runs-on: windows-2022  # 这对应Windows 11环境
 
     steps:
-      -name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code  # 修复：在"-"和"name"之间添加空格
+        uses: actions/checkout@v4
 
-      -name: Set up Python
-      uses: actions/setup-python@v5
-      with:
+      - name: Set up Python  # 修复：在"-"和"name"之间添加空格
+        uses: actions/setup-python@v5
+        with:
           python-version: '3.10'  # 根据你的脚本选择合适的Python版本
 
-      -name: Install dependencies
+      - name: Install dependencies  # 修复：在"-"和"name"之间添加空格
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller  # 安装打包工具
           pip install pandas openpyxl
           # 如果你的脚本有其他依赖，在此添加pip install [dependency]
 
-      -name: Build executable
+      - name: Build executable  # 修复：在"-"和"name"之间添加空格
         run: |
-          yinstaller -F -n "excel处理" my_matching.py
+          pyinstaller -F -n "excel处理" my_matching.py  # 修复：将yinstaller改为pyinstaller
           # -F表示生成单个可执行文件，-n指定生成的文件名，替换YourAppName为你想要的名字
 
-      -name: Upload artifact
+      - name: Upload artifact  # 修复：在"-"和"name"之间添加空格
         uses: actions/upload-artifact@v4
         with:
-        name: windows-exe
-        path: dist/
+          name: windows-exe  # 修复：缩进错误，添加正确缩进
+          path: dist/  # 修复：缩进错误，添加正确缩进
+    
