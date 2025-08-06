@@ -131,7 +131,10 @@ def process_and_write_back(
         temp_cols = ['标准化标记', '提取的尺寸']
         target_df = target_df.drop(columns=[col for col in temp_cols if col in target_df.columns])
         product_df = product_df.drop(columns=[col for col in temp_cols if col in product_df.columns])
-
+        # -------------------- 关键修改：处理料号格式，避免科学计数法 --------------------
+        # 1. 将料号列强制转换为字符串（确保空值显示为空白，而非NaN）
+        target_df['料号'] = target_df['料号'].fillna('').astype(str).str.strip()
+        
         # 写回原始文件（跨平台兼容）
         print(f"正在写回原始文件的 '{target_sheet}' 工作表...")
         ext = os.path.splitext(original_file)[1].lower()
