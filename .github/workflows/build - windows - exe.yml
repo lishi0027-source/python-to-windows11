@@ -22,7 +22,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller  # 安装打包工具
-          pip install pandas openpyxl
+          pip install pandas openpyxl xlrd
           # 如果你的脚本有其他依赖，在此添加pip install [dependency]
 
       - name: Build executable  # 修复：在"-"和"name"之间添加空格
