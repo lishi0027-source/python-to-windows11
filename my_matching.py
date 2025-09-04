@@ -64,9 +64,9 @@ def process_and_write_back(
         )
 
         # 清理列名中的空格
-        target_df.columns = target_df.columns.str.replace(' ','')
-        index_df.columns = index_df.columns.str.replace(' ','')
-        product_df.columns = product_df.columns.str.replace(' ','')
+        target_df.columns = target_df.columns.str.replace(r'\s+','',regex=True)
+        index_df.columns = index_df.columns.str.replace(r'\s+','', regex=True)
+        product_df.columns = product_df.columns.str.replace(r'\s+','', regex=True)
 
         # 创建索引字段（货号 + 标记）
         print("创建索引字段...")
